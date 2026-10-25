@@ -1,0 +1,56 @@
+# ==============================================================================
+# Vivado Generated Directories & Files
+# ==============================================================================
+.Xil/
+*.cache/
+*.hw/
+*.ip_user_files/
+*.sim/
+*.runs/
+*.gen/
+
+# Vivado logs, journals, waveforms, and artifacts
+*.jou
+*.log
+*.backup.jou
+*.backup.log
+*.str
+*.wdb
+*.pb
+*.rpt
+*.dcp
+*.bit
+*.ltx
+*.vcd
+dfx_runtime.txt
+
+# Build output directory
+build/
+
+# Temporary and backup files
+*.tmp
+*.bak
+*.backup
+
+# ==============================================================================
+# Excluded Project Folders and Archives
+# ==============================================================================
+CFU-Playground-main/
+CFU-Playground-main.zip
+RISC_V_ALU_GitHub_Ready/
+
+# Miscellaneous root documents
+FSM-Handshake-Counter.docx
+overview-CFU-Playground.pdf
+
+# ==============================================================================
+# Operating System & Editor Files
+# ==============================================================================
+.DS_Store
+Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini
+.vscode/
+.idea/
+*.swp
+*~
