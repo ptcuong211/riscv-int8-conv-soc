@@ -8,6 +8,7 @@
 *.sim/
 *.runs/
 *.gen/
+xsim.dir/
 
 # Vivado logs, journals, waveforms, and artifacts
 *.jou
@@ -24,8 +25,10 @@
 *.vcd
 dfx_runtime.txt
 
-# Build output directory
-build/
+# Build output directory (allow Stage 4 reports)
+build/*
+!build/stage4_timing_summary.rpt
+!build/stage4_utilization.rpt
 
 # Temporary and backup files
 *.tmp

@@ -1,12 +1,13 @@
 <#
 .SYNOPSIS
-    Script tự động biên dịch và chạy mô phỏng Giai đoạn 1, 2 & 3 với Vivado xsim.
+    Script tự động biên dịch và chạy mô phỏng Giai đoạn 1, 2, 3 & 4 với Vivado xsim.
 .DESCRIPTION
     Script này biên dịch và chạy kiểm tra hồi quy toàn diện:
       1. tb_int8_multiplier (Exhaustive 65,536 test vectors)
       2. tb_mac_int8 (Comprehensive cycle-by-cycle verification)
       3. tb_dot9_int8 (Stage 2 FSM, handshake, counters, CNN & 120 random regression tasks)
       4. tb_conv_window_reader (Stage 3 Synchronous RAM Buffers, Latency handling, Window extraction)
+      5. tb_conv2d_raster_scanner (Stage 4 Full 32x32 Feature Map Scan, 900 Outputs, Backpressure & Control)
     Tự động xử lý đường dẫn Unicode tiếng Việt bằng ánh xạ ổ đĩa ảo tạm (subst).
 #>
 
@@ -64,7 +65,7 @@ try {
     # =========================================================================
     # BƯỚC 1: Mô phỏng int8_multiplier (Giai đoạn 1)
     # =========================================================================
-    Write-Host "`n>>> [1/4] Đang biên dịch và chạy tb_int8_multiplier..." -ForegroundColor Yellow
+    Write-Host "`n>>> [1/5] Đang biên dịch và chạy tb_int8_multiplier..." -ForegroundColor Yellow
     & "$VivadoPath\xvlog.bat" -sv "..\rtl\int8_multiplier.sv" "..\tb\tb_int8_multiplier.sv"
     if ($LASTEXITCODE -ne 0) { throw "Biên dịch xvlog thất bại cho int8_multiplier!" }
 
@@ -81,7 +82,7 @@ try {
     # =========================================================================
     # BƯỚC 2: Mô phỏng mac_int8 (Giai đoạn 1)
     # =========================================================================
-    Write-Host "`n>>> [2/4] Đang biên dịch và chạy tb_mac_int8..." -ForegroundColor Yellow
+    Write-Host "`n>>> [2/5] Đang biên dịch và chạy tb_mac_int8..." -ForegroundColor Yellow
     & "$VivadoPath\xvlog.bat" -sv "..\rtl\int8_multiplier.sv" "..\rtl\mac_int8.sv" "..\tb\tb_mac_int8.sv"
     if ($LASTEXITCODE -ne 0) { throw "Biên dịch xvlog thất bại cho mac_int8!" }
 
@@ -98,7 +99,7 @@ try {
     # =========================================================================
     # BƯỚC 3: Mô phỏng dot9_int8 (Giai đoạn 2)
     # =========================================================================
-    Write-Host "`n>>> [3/4] Đang biên dịch và chạy tb_dot9_int8..." -ForegroundColor Yellow
+    Write-Host "`n>>> [3/5] Đang biên dịch và chạy tb_dot9_int8..." -ForegroundColor Yellow
     & "$VivadoPath\xvlog.bat" -sv "..\rtl\int8_multiplier.sv" "..\rtl\mac_int8.sv" "..\rtl\dot9_int8.sv" "..\tb\tb_dot9_int8.sv"
     if ($LASTEXITCODE -ne 0) { throw "Biên dịch xvlog thất bại cho dot9_int8!" }
 
@@ -115,7 +116,7 @@ try {
     # =========================================================================
     # BƯỚC 4: Mô phỏng conv_window_reader (Giai đoạn 3)
     # =========================================================================
-    Write-Host "`n>>> [4/4] Đang biên dịch và chạy tb_conv_window_reader..." -ForegroundColor Yellow
+    Write-Host "`n>>> [4/5] Đang biên dịch và chạy tb_conv_window_reader..." -ForegroundColor Yellow
     & "$VivadoPath\xvlog.bat" -sv "..\rtl\int8_multiplier.sv" "..\rtl\mac_int8.sv" "..\rtl\dot9_int8.sv" "..\rtl\ram_sync_read.sv" "..\rtl\conv_window_reader.sv" "..\tb\tb_conv_window_reader.sv"
     if ($LASTEXITCODE -ne 0) { throw "Biên dịch xvlog thất bại cho conv_window_reader!" }
 
@@ -129,14 +130,32 @@ try {
         throw "Mô phỏng tb_conv_window_reader thất bại hoặc không đạt PASS!"
     }
 
+    # =========================================================================
+    # BƯỚC 5: Mô phỏng conv2d_raster_scanner (Giai đoạn 4)
+    # =========================================================================
+    Write-Host "`n>>> [5/5] Đang biên dịch và chạy tb_conv2d_raster_scanner..." -ForegroundColor Yellow
+    & "$VivadoPath\xvlog.bat" -sv "..\rtl\int8_multiplier.sv" "..\rtl\mac_int8.sv" "..\rtl\dot9_int8.sv" "..\rtl\ram_sync_read.sv" "..\rtl\conv_window_reader.sv" "..\rtl\conv2d_raster_scanner.sv" "..\tb\tb_conv2d_raster_scanner.sv"
+    if ($LASTEXITCODE -ne 0) { throw "Biên dịch xvlog thất bại cho conv2d_raster_scanner!" }
+
+    & "$VivadoPath\xelab.bat" -debug typical tb_conv2d_raster_scanner -s tb_conv2d_raster_scanner_sim
+    if ($LASTEXITCODE -ne 0) { throw "Elaboration xelab thất bại cho conv2d_raster_scanner!" }
+
+    $scan_out = & "$VivadoPath\xsim.bat" tb_conv2d_raster_scanner_sim -R
+    $scan_out | ForEach-Object { Write-Host $_ }
+    $scan_str = $scan_out -join "`n"
+    if ($LASTEXITCODE -ne 0 -or ($scan_str -notmatch "TAT CA CAC TESTBENCH GIAI DOAN 4 DA PASS")) {
+        throw "Mô phỏng tb_conv2d_raster_scanner thất bại hoặc không đạt PASS!"
+    }
+
     Write-Host "`n==================================================================" -ForegroundColor Green
-    Write-Host "   TẤT CẢ TESTBENCH GIAI ĐOẠN 1, 2 & 3 ĐÃ HOÀN THÀNH XUẤT SẮC (PASS 100%)!" -ForegroundColor Green
+    Write-Host "   TẤT CẢ TESTBENCH GIAI ĐOẠN 1, 2, 3 & 4 ĐÃ HOÀN THÀNH XUẤT SẮC (PASS 100%)!" -ForegroundColor Green
     Write-Host "==================================================================" -ForegroundColor Green
     Write-Host "File waveform VCD đã lưu tại:" -ForegroundColor Cyan
     Write-Host "  - $(Join-Path $BuildDir 'int8_multiplier_waveform.vcd')"
     Write-Host "  - $(Join-Path $BuildDir 'mac_int8_waveform.vcd')"
     Write-Host "  - $(Join-Path $BuildDir 'dot9_int8_waveform.vcd')"
     Write-Host "  - $(Join-Path $BuildDir 'conv_window_reader_waveform.vcd')"
+    Write-Host "  - $(Join-Path $BuildDir 'conv2d_raster_scanner_waveform.vcd')"
 
 } finally {
     Pop-Location

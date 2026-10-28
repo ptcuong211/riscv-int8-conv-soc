@@ -60,7 +60,7 @@ if errorlevel 1 goto error
 
 echo.
 echo ==================================================================
-echo [4/4] Dang chay tb_conv_window_reader...
+echo [4/5] Dang chay tb_conv_window_reader...
 echo ==================================================================
 call "%VIVADO_BIN%\xvlog.bat" -sv "..\rtl\int8_multiplier.sv" "..\rtl\mac_int8.sv" "..\rtl\dot9_int8.sv" "..\rtl\ram_sync_read.sv" "..\rtl\conv_window_reader.sv" "..\tb\tb_conv_window_reader.sv"
 if errorlevel 1 goto error
@@ -71,13 +71,25 @@ if errorlevel 1 goto error
 
 echo.
 echo ==================================================================
-echo    KET QUA: TAT CA TESTBENCH GIAI DOAN 1, 2 & 3 DEU DAT PASS 100%%!
+echo [5/5] Dang chay tb_conv2d_raster_scanner...
+echo ==================================================================
+call "%VIVADO_BIN%\xvlog.bat" -sv "..\rtl\int8_multiplier.sv" "..\rtl\mac_int8.sv" "..\rtl\dot9_int8.sv" "..\rtl\ram_sync_read.sv" "..\rtl\conv_window_reader.sv" "..\rtl\conv2d_raster_scanner.sv" "..\tb\tb_conv2d_raster_scanner.sv"
+if errorlevel 1 goto error
+call "%VIVADO_BIN%\xelab.bat" -debug typical tb_conv2d_raster_scanner -s tb_conv2d_raster_scanner_sim
+if errorlevel 1 goto error
+call "%VIVADO_BIN%\xsim.bat" tb_conv2d_raster_scanner_sim -R
+if errorlevel 1 goto error
+
+echo.
+echo ==================================================================
+echo    KET QUA: TAT CA TESTBENCH GIAI DOAN 1, 2, 3 & 4 DEU DAT PASS 100%%!
 echo ==================================================================
 echo File waveform VCD duoc tao tai:
 echo   - V:\build\int8_multiplier_waveform.vcd
 echo   - V:\build\mac_int8_waveform.vcd
 echo   - V:\build\dot9_int8_waveform.vcd
 echo   - V:\build\conv_window_reader_waveform.vcd
+echo   - V:\build\conv2d_raster_scanner_waveform.vcd
 goto end
 
 :error
