@@ -329,7 +329,8 @@ The bitstream file will be generated at `build/stage7/fpga_top.bit`.
 
 ## 11. Authors & Academic Context
 
-- **Author:** Pham Tran Cuong (`ptcuong211`)
+- **Authors:**
+  - **Phạm Thế Cường** (Pham The Cuong) — Student ID: `23161239` (GitHub: [`ptcuong211`](https://github.com/ptcuong211))
+  - **Hoàng Gia Bảo** (Hoang Gia Bao) — Student ID: `23161226`
 - **Institution:** Department of Electronics & Telecommunications Engineering
 - **Academic Milestone:** Capstone Project 2 (Đồ án 2) — 2026
-- **License:** Open-source for academic and research purposes.
