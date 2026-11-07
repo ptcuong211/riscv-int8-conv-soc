@@ -1,0 +1,39 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
+| Date         : Sat Oct 31 23:00:36 2026
+| Host         : LAPTOP-7N87NFQA running 64-bit major release  (build 9200)
+| Command      : report_utilization -hierarchical -file build/reports/stage6_utilization_hierarchical.rpt
+| Design       : soc_top
+| Device       : xc7a35tcpg236-1
+| Speed File   : -1
+| Design State : Routed
+---------------------------------------------------------------------------------------------------------------------------------------------
+
+Utilization Design Information
+
+Table of Contents
+-----------------
+1. Utilization by Hierarchy
+
+1. Utilization by Hierarchy
+---------------------------
+
++---------------------------+-------------------------------+------------+------------+---------+------+-----+--------+--------+------------+
+|          Instance         |             Module            | Total LUTs | Logic LUTs | LUTRAMs | SRLs | FFs | RAMB36 | RAMB18 | DSP Blocks |
++---------------------------+-------------------------------+------------+------------+---------+------+-----+--------+--------+------------+
+| soc_top                   |                         (top) |       1228 |       1178 |      50 |    0 | 834 |      5 |      1 |          0 |
+|   (soc_top)               |                         (top) |          0 |          0 |       0 |    0 |  66 |      0 |      0 |          0 |
+|   u_accel_mmio            |              accelerator_mmio |         13 |         13 |       0 |    0 |  77 |      0 |      0 |          0 |
+|   u_accelerator           |          conv_accelerator_top |        189 |        183 |       6 |    0 | 202 |      1 |      1 |          0 |
+|     u_raster_scanner      |         conv2d_raster_scanner |        188 |        182 |       6 |    0 | 199 |      0 |      1 |          0 |
+|       (u_raster_scanner)  |         conv2d_raster_scanner |         26 |         26 |       0 |    0 |  55 |      0 |      0 |          0 |
+|       u_window_reader     |            conv_window_reader |        163 |        157 |       6 |    0 | 144 |      0 |      1 |          0 |
+|         (u_window_reader) |            conv_window_reader |          9 |          9 |       0 |    0 |  65 |      0 |      0 |          0 |
+|         u_input_buffer    |                 ram_sync_read |         53 |         53 |       0 |    0 |   0 |      0 |      1 |          0 |
+|         u_weight_buffer   | ram_sync_read__parameterized0 |         63 |         57 |       6 |    0 |   8 |      0 |      0 |          0 |
+|   u_cpu                   |                      picorv32 |       1024 |        980 |      44 |    0 | 488 |      0 |      0 |          0 |
++---------------------------+-------------------------------+------------+------------+---------+------+-----+--------+--------+------------+
+* Note: The sum of lower-level cells may be larger than their parent cells total, due to cross-hierarchy LUT combining
+
+
