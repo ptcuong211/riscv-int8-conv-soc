@@ -1,0 +1,35 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
+| Date         : Sat Oct 31 21:11:50 2026
+| Host         : LAPTOP-7N87NFQA running 64-bit major release  (build 9200)
+| Command      : report_utilization -hierarchical -file build/reports/stage5_utilization_hierarchical.rpt
+| Design       : conv_accelerator_top
+| Device       : xc7a35tcpg236-1
+| Speed File   : -1
+| Design State : Routed
+---------------------------------------------------------------------------------------------------------------------------------------------
+
+Utilization Design Information
+
+Table of Contents
+-----------------
+1. Utilization by Hierarchy
+
+1. Utilization by Hierarchy
+---------------------------
+
++--------------------------+-----------------------+------------+------------+---------+------+-----+--------+--------+------------+
+|         Instance         |         Module        | Total LUTs | Logic LUTs | LUTRAMs | SRLs | FFs | RAMB36 | RAMB18 | DSP Blocks |
++--------------------------+-----------------------+------------+------------+---------+------+-----+--------+--------+------------+
+| conv_accelerator_top     |                 (top) |        190 |        184 |       6 |    0 | 199 |      1 |      1 |          0 |
+|   (conv_accelerator_top) |                 (top) |          0 |          0 |       0 |    0 |   0 |      0 |      0 |          0 |
+|   u_raster_scanner       | conv2d_raster_scanner |        190 |        184 |       6 |    0 | 199 |      0 |      1 |          0 |
+|     (u_raster_scanner)   | conv2d_raster_scanner |         25 |         25 |       0 |    0 |  55 |      0 |      0 |          0 |
+|     u_window_reader      |    conv_window_reader |        165 |        159 |       6 |    0 | 144 |      0 |      1 |          0 |
+|       (u_window_reader)  |    conv_window_reader |         10 |         10 |       0 |    0 |  65 |      0 |      0 |          0 |
+|       u_input_buffer     |         ram_sync_read |         80 |         80 |       0 |    0 |   0 |      0 |      1 |          0 |
++--------------------------+-----------------------+------------+------------+---------+------+-----+--------+--------+------------+
+* Note: The sum of lower-level cells may be larger than their parent cells total, due to cross-hierarchy LUT combining
+
+
