@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 echo ==================================================================
-echo    RISC-V INT8 Accelerator - Regression Verification Runner (BAT)
+echo    RISC-V INT8 Accelerator - Regression Verification Runner (Stage 6)
 echo ==================================================================
 
 set VIVADO_BIN=D:\vivado\2025.1\Vivado\bin
@@ -27,7 +27,7 @@ if not exist V:\build (
 
 echo.
 echo ==================================================================
-echo [1/4] Dang chay tb_int8_multiplier...
+echo [1/9] Dang chay tb_int8_multiplier...
 echo ==================================================================
 call "%VIVADO_BIN%\xvlog.bat" -sv "..\rtl\int8_multiplier.sv" "..\tb\tb_int8_multiplier.sv"
 if errorlevel 1 goto error
@@ -38,7 +38,7 @@ if errorlevel 1 goto error
 
 echo.
 echo ==================================================================
-echo [2/4] Dang chay tb_mac_int8...
+echo [2/9] Dang chay tb_mac_int8...
 echo ==================================================================
 call "%VIVADO_BIN%\xvlog.bat" -sv "..\rtl\int8_multiplier.sv" "..\rtl\mac_int8.sv" "..\tb\tb_mac_int8.sv"
 if errorlevel 1 goto error
@@ -49,7 +49,7 @@ if errorlevel 1 goto error
 
 echo.
 echo ==================================================================
-echo [3/4] Dang chay tb_dot9_int8...
+echo [3/9] Dang chay tb_dot9_int8...
 echo ==================================================================
 call "%VIVADO_BIN%\xvlog.bat" -sv "..\rtl\int8_multiplier.sv" "..\rtl\mac_int8.sv" "..\rtl\dot9_int8.sv" "..\tb\tb_dot9_int8.sv"
 if errorlevel 1 goto error
@@ -60,7 +60,7 @@ if errorlevel 1 goto error
 
 echo.
 echo ==================================================================
-echo [4/5] Dang chay tb_conv_window_reader...
+echo [4/9] Dang chay tb_conv_window_reader...
 echo ==================================================================
 call "%VIVADO_BIN%\xvlog.bat" -sv "..\rtl\int8_multiplier.sv" "..\rtl\mac_int8.sv" "..\rtl\dot9_int8.sv" "..\rtl\ram_sync_read.sv" "..\rtl\conv_window_reader.sv" "..\tb\tb_conv_window_reader.sv"
 if errorlevel 1 goto error
@@ -71,7 +71,7 @@ if errorlevel 1 goto error
 
 echo.
 echo ==================================================================
-echo [5/5] Dang chay tb_conv2d_raster_scanner...
+echo [5/9] Dang chay tb_conv2d_raster_scanner...
 echo ==================================================================
 call "%VIVADO_BIN%\xvlog.bat" -sv "..\rtl\int8_multiplier.sv" "..\rtl\mac_int8.sv" "..\rtl\dot9_int8.sv" "..\rtl\ram_sync_read.sv" "..\rtl\conv_window_reader.sv" "..\rtl\conv2d_raster_scanner.sv" "..\tb\tb_conv2d_raster_scanner.sv"
 if errorlevel 1 goto error
@@ -82,14 +82,56 @@ if errorlevel 1 goto error
 
 echo.
 echo ==================================================================
-echo    KET QUA: TAT CA TESTBENCH GIAI DOAN 1, 2, 3 & 4 DEU DAT PASS 100%%!
+echo [6/9] Dang chay tb_output_buffer...
 echo ==================================================================
-echo File waveform VCD duoc tao tai:
-echo   - V:\build\int8_multiplier_waveform.vcd
-echo   - V:\build\mac_int8_waveform.vcd
-echo   - V:\build\dot9_int8_waveform.vcd
-echo   - V:\build\conv_window_reader_waveform.vcd
-echo   - V:\build\conv2d_raster_scanner_waveform.vcd
+call "%VIVADO_BIN%\xvlog.bat" -sv "..\rtl\output_buffer.sv" "..\tb\tb_output_buffer.sv"
+if errorlevel 1 goto error
+call "%VIVADO_BIN%\xelab.bat" -debug typical tb_output_buffer -s tb_output_buffer_sim
+if errorlevel 1 goto error
+call "%VIVADO_BIN%\xsim.bat" tb_output_buffer_sim -R
+if errorlevel 1 goto error
+
+echo.
+echo ==================================================================
+echo [7/9] Dang chay tb_conv_accelerator_top...
+echo ==================================================================
+call "%VIVADO_BIN%\xvlog.bat" -sv "..\rtl\int8_multiplier.sv" "..\rtl\mac_int8.sv" "..\rtl\dot9_int8.sv" "..\rtl\ram_sync_read.sv" "..\rtl\conv_window_reader.sv" "..\rtl\conv2d_raster_scanner.sv" "..\rtl\output_buffer.sv" "..\rtl\conv_accelerator_top.sv" "..\tb\tb_conv_accelerator_top.sv"
+if errorlevel 1 goto error
+call "%VIVADO_BIN%\xelab.bat" -debug typical tb_conv_accelerator_top -s tb_conv_accelerator_top_sim
+if errorlevel 1 goto error
+call "%VIVADO_BIN%\xsim.bat" tb_conv_accelerator_top_sim -R
+if errorlevel 1 goto error
+
+echo.
+echo ==================================================================
+echo [8/9] Dang chay tb_accelerator_mmio...
+echo ==================================================================
+call "%VIVADO_BIN%\xvlog.bat" -sv "..\rtl\accelerator_mmio.sv" "..\tb\tb_accelerator_mmio.sv"
+if errorlevel 1 goto error
+call "%VIVADO_BIN%\xelab.bat" -debug typical tb_accelerator_mmio -s tb_accelerator_mmio_sim
+if errorlevel 1 goto error
+call "%VIVADO_BIN%\xsim.bat" tb_accelerator_mmio_sim -R
+if errorlevel 1 goto error
+
+echo.
+echo ==================================================================
+echo [9/9] Dang chay tb_soc_top (PicoRV32 End-to-End)...
+echo ==================================================================
+if not exist V:\build\firmware mkdir V:\build\firmware
+copy /y "..\firmware\firmware.hex" "firmware.hex" >nul
+copy /y "..\firmware\firmware.hex" "firmware\firmware.hex" >nul
+
+call "%VIVADO_BIN%\xvlog.bat" -v "..\rtl\picorv32.v" -sv "..\rtl\int8_multiplier.sv" "..\rtl\mac_int8.sv" "..\rtl\dot9_int8.sv" "..\rtl\ram_sync_read.sv" "..\rtl\conv_window_reader.sv" "..\rtl\conv2d_raster_scanner.sv" "..\rtl\output_buffer.sv" "..\rtl\conv_accelerator_top.sv" "..\rtl\soc_ram.sv" "..\rtl\accelerator_mmio.sv" "..\rtl\soc_top.sv" "..\tb\tb_soc_top.sv"
+if errorlevel 1 goto error
+call "%VIVADO_BIN%\xelab.bat" -debug typical tb_soc_top -s tb_soc_top_sim
+if errorlevel 1 goto error
+call "%VIVADO_BIN%\xsim.bat" tb_soc_top_sim -R
+if errorlevel 1 goto error
+
+echo.
+echo ==================================================================
+echo    KET QUA: TAT CA 9/9 TESTBENCH GIAI DOAN 1 -> 6 DEU DAT PASS 100%%!
+echo ==================================================================
 goto end
 
 :error
@@ -98,4 +140,3 @@ echo [ERROR] Qua trinh bien dich hoac mo phong bi loi!
 exit /b 1
 
 :end
-endlocal

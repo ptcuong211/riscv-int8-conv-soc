@@ -25,10 +25,12 @@ xsim.dir/
 *.vcd
 dfx_runtime.txt
 
-# Build output directory (allow Stage 4 reports)
+# Build output directory (allow official Stage 4, 5, 6, 7 verification reports)
 build/*
 !build/stage4_timing_summary.rpt
 !build/stage4_utilization.rpt
+!build/reports/
+!build/reports/*.rpt
 
 # Temporary and backup files
 *.tmp
@@ -36,15 +38,33 @@ build/*
 *.backup
 
 # ==============================================================================
+# Local Working Documents & Report Scratch Scripts (Keep Local)
+# ==============================================================================
+*.docx
+*.pdf
+~$*.docx
+*.png
+V*_Revision_Log.md
+V*_Acceptance_Report.md
+scripts/chapters_*.txt
+scripts/v3_dump.txt
+scripts/content_*.py
+scripts/generate_*.py
+scripts/inspect_*.py
+scripts/dump_*.py
+scripts/verify_v*.py
+scripts/test_*.py
+scripts/search_*.py
+scripts/update_*.py
+scripts/locate_*.py
+scripts/__pycache__/
+
+# ==============================================================================
 # Excluded Project Folders and Archives
 # ==============================================================================
 CFU-Playground-main/
 CFU-Playground-main.zip
 RISC_V_ALU_GitHub_Ready/
-
-# Miscellaneous root documents
-FSM-Handshake-Counter.docx
-overview-CFU-Playground.pdf
 
 # ==============================================================================
 # Operating System & Editor Files

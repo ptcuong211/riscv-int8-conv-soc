@@ -1,199 +1,335 @@
-# Hệ Thống SoC RISC-V Tích Hợp Bộ Tăng Tốc Tính Toán INT8 Trên FPGA
+# RISC-V SoC with Dedicated Signed INT8 2D Convolution Hardware Accelerator on FPGA
 
-Dự án đồ án chuyên ngành thiết kế phần cứng vi mạch (RTL Design) hướng đến việc hiện thực một hệ thống SoC (System-on-Chip) hoàn chỉnh dựa trên kiến trúc tập lệnh RISC-V, tích hợp bộ tăng tốc phần cứng (Hardware Accelerator) chuyên dụng cho phép tính tích chập (2D Convolution) số nguyên signed INT8.
+[![RTL Verification](https://img.shields.io/badge/Verification-9%2F9%20Testbenches%20PASS-brightgreen.svg)]()
+[![FPGA Implementation](https://img.shields.io/badge/Implementation-Artix--7%20xc7a35t-blue.svg)]()
+[![Clock Frequency](https://img.shields.io/badge/Timing-100%20MHz%20MET%20(WNS%20%2B0.255ns)-success.svg)]()
+[![Bitstream Status](https://img.shields.io/badge/Bitstream-Generated%20(PASS%20TO%20BITSTREAM)-orange.svg)]()
+[![Hardware Test](https://img.shields.io/badge/Board%20Bring--Up-Hardware%20Test%20Pending-yellow.svg)]()
 
----
-
-## 1. Phân định Thành phần Thiết kế và Phạm vi Đồ án
-
-Nhằm đảm bảo tính minh bạch học thuật và chuẩn mực kỹ thuật trong đồ án vi mạch:
-
-### 1.1 Khối phần cứng tự thiết kế (Custom RTL)
-- **Đường xử lý dữ liệu (Datapath Accelerator)**:
-  - Khối nhân số nguyên có dấu `int8_multiplier` (8-bit $\times$ 8-bit $\to$ 16-bit).
-  - Khối nhân tích lũy `mac_int8` (Accumulator 32-bit, Sign Extension).
-  - Khối trượt ma trận và bộ đệm dòng (Line Buffers / Window Buffers).
-- **Khối điều khiển (Control Path)**:
-  - Máy trạng thái hữu hạn (FSM) và bộ đếm đồng bộ điều khiển chu trình tính toán 9 cặp kernel $3 \times 3$.
-  - Khối sinh tín hiệu báo bận (BUSY), hoàn thành (DONE) và điều khiển luồng (Valid/Ready).
-- **Khối kết nối hệ thống (Interconnect & MMIO)**:
-  - Bộ giải mã địa chỉ và thanh ghi cấu hình MMIO (Control/Status Registers).
-  - Giao tiếp cầu nối giữa bus của CPU và Accelerator.
-- **Phần mềm nhúng (Bare-metal Firmware)**:
-  - Firmware C khởi tạo dữ liệu, kích hoạt tăng tốc, kiểm tra cờ ngắt/polling và giao tiếp UART.
-
-### 1.2 Thành phần bên thứ ba / IP có sẵn (Third-party IPs)
-- **Lõi vi xử lý (CPU Core)**: PicoRV32 (cấu hình RV32IM: hỗ trợ tập lệnh nguyên và nhân/chia phần cứng).
-- **Bộ nhớ nội (On-chip Memory)**: Khối FPGA Block RAM (BRAM) cho Program/Data RAM.
-- **Ngoại vi giao tiếp (Peripherals)**: Khối UART Controller tiêu chuẩn để xuất log và kết quả đo đạc.
-
-### 1.3 Phân biệt phạm vi tính năng
-> [!IMPORTANT]
-> **Khác biệt quan trọng**: Hệ thống accelerator trong đồ án này tập trung hiện thực và tăng tốc **phép tính tích chập 2D (2D Convolution Layer)** với dữ liệu INT8, không phải toàn bộ một pipeline mạng nơ-ron sâu phức tạp (như ResNet/YOLO) bao gồm đầy đủ các lớp Pooling, Requantization phi tuyến, Softmax, v.v. Việc chứng minh tăng tốc phần cứng thành công dựa trên so sánh trực tiếp thời gian thực thi của phép tích chập trên phần cứng accelerator so với CPU tính toán bằng phần mềm thuần túy.
+> **Project Title:** Design and RTL Implementation of a RISC-V SoC Integrated with a Dedicated Hardware Accelerator for Signed INT8 2D Convolution on FPGA  
+> **Target FPGA Board:** Digilent Basys 3 (AMD/Xilinx Artix-7 `xc7a35tcpg236-1`)  
+> **EDA Tool:** AMD Vivado Design Suite 2025.1  
+> **Status:** `RTL Verified / Implementation Complete / Bitstream Generated / Hardware Test Pending`
 
 ---
 
-## 2. Lộ Trình Triển Khai 8 Tuần
+## 1. Project Overview
 
-| Giai đoạn | Nội dung công việc | Tiêu chí hoàn thành (Exit Criteria) | Trạng thái |
-|:---:|---|---|:---:|
-| **1** | **Bộ nhân signed INT8 và MAC INT32** | Testbench tự kiểm tra đạt PASS 100% | **HOÀN THÀNH** |
-| **2** | **FSM và bộ đếm điều khiển MAC tính 9 cặp (`dot9_int8`)** | Kích hoạt START, handshake valid-ready, cờ DONE đúng chu kỳ | **HOÀN THÀNH** |
-| **3** | **Bộ đệm RAM đồng bộ & Trích xuất cửa sổ 3x3 (`conv_window_reader`)** | Đọc đồng bộ 1-cycle latency, cấp 9 cặp chuẩn xác, khớp Golden Model | **HOÀN THÀNH** |
-| **4** | Accelerator convolution cho toàn bức ảnh | Khớp từng pixel output 30x30 với mô hình Python | Kế tiếp |
-| **5** | Tích hợp CPU PicoRV32, Bus, Bộ nhớ và UART | CPU chạy firmware C bare-metal in chuỗi Hello qua UART | Chờ |
-| **6** | Giao tiếp MMIO và Driver điều khiển | CPU nạp ảnh, ra lệnh tính, đọc kết quả và so sánh tự động | Chờ |
-| **7** | Triển khai FPGA, tối ưu Timing & Resource | Đạt tần số clock mục tiêu, tối ưu số lượng DSP/LUT | Chờ |
-| **8** | Đo đạc Benchmark và Báo cáo tổng kết | Số liệu tăng tốc phần cứng thực tế và báo cáo đồ án | Chờ |
+This repository contains the complete SystemVerilog/Verilog RTL design, verification testbenches, firmware toolchain, and FPGA implementation scripts for a System-on-Chip (SoC) based on the open-source **PicoRV32 (RV32I)** RISC-V CPU core. The SoC integrates a custom, high-throughput hardware accelerator dedicated to **2D Convolution** on signed 8-bit integer (`signed INT8`) data, operating on single-channel feature maps for lightweight edge convolutional neural network (CNN) workloads.
+
+### Key Specifications
+- **Input Feature Map:** Single-channel $32 \times 32$ matrix (1,024 elements), two's complement signed INT8 $[-128, +127]$.
+- **Convolution Kernel:** $3 \times 3$ kernel (9 elements), signed INT8, Stride = 1, Padding = 0.
+- **Output Feature Map:** $30 \times 30$ matrix ($900$ elements), signed INT32 $[-147,456 \text{ to } +147,456]$ stored in 32-bit registers to mathematically prevent accumulator overflow.
+- **Clock Frequency:** 100.00 MHz ($T_{\text{clk}} = 10.000\text{ ns}$).
+- **Interconnect:** Custom Memory-Mapped I/O (MMIO) controller interfacing PicoRV32 Native Memory Bus.
+- **Board Peripherals:** 2-stage Flip-Flop AASD reset synchronizer, status LEDs, and UART transmitter (115200 baud, 8-N-1) for host communication.
 
 ---
 
-## 3. Cấu Trúc Workspace
+## 2. SoC System Architecture
 
 ```
-SoC RISCV/
-├── rtl/                        # Mã nguồn RTL SystemVerilog tự thiết kế
-│   ├── int8_multiplier.sv      # Khối nhân signed INT8 tổ hợp (Giai đoạn 1)
-│   ├── mac_int8.sv             # Khối nhân - tích lũy INT8/INT32 (Giai đoạn 1)
-│   ├── dot9_int8.sv            # FSM & Handshake tính 9 cặp kernel (Giai đoạn 2)
-│   ├── ram_sync_read.sv        # RAM đọc đồng bộ (suy diễn Block RAM) (Giai đoạn 3)
-│   └── conv_window_reader.sv   # Bộ đệm RAM & Trích xuất cửa sổ 3x3 (Giai đoạn 3)
-├── tb/                         # Testbench SystemVerilog tự kiểm tra
-│   ├── tb_int8_multiplier.sv   # Kiểm tra toàn diện 65,536 tổ hợp
-│   ├── tb_mac_int8.sv          # Kiểm tra chu kỳ, giá trị biên, hồi quy ngẫu nhiên
-│   ├── tb_dot9_int8.sv         # Kiểm tra FSM, stall, backpressure, 120 tác vụ ngẫu nhiên
-│   └── tb_conv_window_reader.sv # Kiểm tra nạp ảnh 32x32, 20 cửa sổ tiêu biểu & ngẫu nhiên
-├── scripts/                    # Scripts tự động hóa chạy mô phỏng
-│   ├── run_tests.ps1           # Script PowerShell cho Vivado Simulator
-│   └── run_tests.bat           # Script Batch CMD cho Windows
-├── docs/                       # Tài liệu thiết kế và đặc tả kỹ thuật
-│   ├── stage1_spec.md          # Đặc tả chi tiết Giai đoạn 1
-│   ├── stage2_spec.md          # Đặc tả chi tiết Giai đoạn 2 (FSM & Handshake)
-│   └── stage3_spec.md          # Đặc tả chi tiết Giai đoạn 3 (RAM Buffers & Sequencer)
-├── build/                      # Thư mục tạm chứa log, snapshot và waveform VCD
-│   ├── int8_multiplier_waveform.vcd
-│   ├── mac_int8_waveform.vcd
-│   ├── dot9_int8_waveform.vcd
-│   └── conv_window_reader_waveform.vcd
-└── README.md                   # Tài liệu hướng dẫn tổng quan dự án
++--------------------------------------------------------------------------------------------------+
+|                                      FPGA TOP-LEVEL (fpga_top)                                   |
+|                                                                                                  |
+|   +-------------------+    100 MHz sys_clk      +--------------------------------------------+   |
+|   | 100 MHz Oscillator|------------------------>| Two-Stage FF Asynchronous Assertion        |   |
+|   +-------------------+                         | Synchronous Deassertion (AASD) Reset Sync  |   |
+|   | Button btnC (U18) |------------------------>+--------------------------------------------+   |
+|   +-------------------+                                               |                          |
+|                                                                    rst_n                         |
+|   +-------------------------------------------------------------------|----------------------+   |
+|   |                            SoC TOP-LEVEL (soc_top)                v                      |   |
+|   |                                                                                          |   |
+|   |   +-------------------+               PicoRV32 Native Memory Bus                         |   |
+|   |   |   PicoRV32 CPU    |<========================================+                        |   |
+|   |   |  (RV32I Core)     |                                         |                        |   |
+|   |   +-------------------+                                         |                        |   |
+|   |                                                                 v                        |   |
+|   |   +----------------------------------------------------------------------------------+   |   |
+|   |   |                     Address Decoder & Interconnect Controller                    |   |   |
+|   |   +----------------------------------------------------------------------------------+   |   |
+|   |             | (0x0000_0000 - 0x0FFF_FFFF)             | (0x1000_0000 - 0x1FFF_FFFF)      |   |
+|   |             v                                         v                                  |   |
+|   |   +-------------------------+             +--------------------------------------+       |   |
+|   |   |       16 KB RAM         |             |       MMIO Control Interface         |       |   |
+|   |   | (4x RAMB36E1 BRAMs)     |             |      (accelerator_mmio.sv)           |       |   |
+|   |   | Holds Firmware & Data   |             +--------------------------------------+       |   |
+|   |   +-------------------------+                                 |                          |   |
+|   |                                                               v                          |   |
+|   |   +----------------------------------------------------------------------------------+   |   |
+|   |   |              CONVOLUTION ACCELERATOR SUBSYSTEM (conv_accelerator_top)            |   |   |
+|   |   |                                                                                  |   |   |
+|   |   |   +-----------------------+              +-----------------------------------+   |   |   |
+|   |   |   |  Input Buffer (BRAM)  |              |        Weight Buffer (Dist-RAM)   |   |   |   |
+|   |   |   | 1,024 x 8-bit (1 KB)  |              |          9 x 8-bit (9 Bytes)      |   |   |   |
+|   |   |   +-----------------------+              +-----------------------------------+   |   |   |
+|   |   |               |                                            |                     |   |   |
+|   |   |               v                                            v                     |   |   |
+|   |   |   +--------------------------------------------------------------------------+   |   |   |
+|   |   |   |             2D Raster Scanner (conv2d_raster_scanner.sv)                 |   |   |   |
+|   |   |   |  - Iterates 30x30 output windows (row: 0..29, col: 0..29)                |   |   |   |
+|   |   |   |  - Generates linear pixel addresses addr = (row + dr)*32 + (col + dc)    |   |   |   |
+|   |   |   +--------------------------------------------------------------------------+   |   |   |
+|   |   |                                       |                                          |   |   |
+|   |   |                                       v Valid/Ready                              |   |   |
+|   |   |   +--------------------------------------------------------------------------+   |   |   |
+|   |   |   |             Dot9 Sequential MAC Compute Engine (dot9_int8.sv)            |   |   |   |
+|   |   |   |  - int8_multiplier.sv (Combinational 8x8 signed -> 16-bit)              |   |   |   |
+|   |   |   |  - mac_int8.sv        (Accumulator 32-bit with Sign Extension)           |   |   |   |
+|   |   |   |  - 11-cycle execution per 3x3 window                                     |   |   |   |
+|   |   |   +--------------------------------------------------------------------------+   |   |   |
+|   |   |                                       |                                          |   |   |
+|   |   |                                       v 32-bit INT32                             |   |   |
+|   |   |   +--------------------------------------------------------------------------+   |   |   |
+|   |   |   |               Output Buffer Subsystem (output_buffer.sv)                 |   |   |   |
+|   |   |   |  - 900 x 32-bit INT32 Dual-Port RAM (Dual RAMB36E1, 3.6 KB)              |   |   |   |
+|   |   |   +--------------------------------------------------------------------------+   |   |   |
+|   |   +----------------------------------------------------------------------------------+   |   |
+|   +------------------------------------------------------------------------------------------+   |
+|                                     |                                                            |
+|                                     v                                                            |
+|   +---------------------------------------------------+    UART Serial Out (115200 baud)         |
+|   | UART Transmitter Module (uart_tx.sv)              |-----------------------------------> A18  |
+|   +---------------------------------------------------+                                          |
+|   | Status LEDs (LED[1:0] -> DONE / BUSY)             |-----------------------------------> Board|
++--------------------------------------------------------------------------------------------------+
 ```
 
 ---
 
-## 4. Hiện Trạng Giai Đoạn 1: Bộ Nhân INT8 & MAC INT32
+## 3. RTL Module Hierarchy & Source Inventory
 
-Giai đoạn 1 đã được thiết kế và kiểm chứng toàn diện bằng công cụ **Vivado Simulator v2025.1.0**:
+The hardware architecture comprises **14 modular Verilog/SystemVerilog source files**:
 
-### 4.1 Bộ nhân `int8_multiplier`
-- **Chức năng**: Nhân hai số signed 8-bit bù hai (`x`, `w`) tạo ra tích signed 16-bit (`product`).
-- **Phạm vi giá trị**: $[-128, +127] \times [-128, +127] \to [-16256, +16384]$. Dải 16-bit $[-32768, +32767]$ bảo toàn trọn vẹn giá trị, không tràn bit.
-- **Kiểm chứng**: Chạy kiểm tra toàn bộ $256 \times 256 = \mathbf{65,536}$ trường hợp đầu vào. Đối chiếu với mô hình tham chiếu Golden Model.
-  - **Kết quả**: `65536 / 65536 PASSED` (0 lỗi).
-
-### 4.2 Khối nhân tích lũy `mac_int8`
-- **Chức năng**: Nhân tích lũy với thanh ghi 32-bit, hỗ trợ cờ điều khiển `rst`, `clear`, `valid`.
-- **Thứ tự ưu tiên**: `rst` (ưu tiên cao nhất) > `clear` (ưu tiên nhì) > `valid`. Khi `clear` và `valid` cùng bật, hệ thống ưu tiên xóa thanh ghi về 0 và bỏ qua dữ liệu ở chu kỳ đó.
-- **Mở rộng dấu (Sign Extension)**: Bit dấu của tích 16-bit (`product[15]`) được nhân bản lên 16 bit cao của toán hạng cộng 32-bit.
-- **Kiểm chứng**:
-  - Reset đồng bộ và Clear đồng bộ.
-  - Xung đột `clear = 1` và `valid = 1`.
-  - Toàn bộ các tổ hợp dấu: $(+) \times (+)$, $(+) \times (-)$, $(-) \times (+)$, $(-) \times (-)$, và toán hạng bằng 0.
-  - Các giá trị biên: $-128 \times -128 = +16384$; $-128 \times 127 = -16256$; $127 \times 127 = +16129$.
-  - Tính năng giữ trạng thái khi có khoảng nghỉ (valid bubble/stall).
-  - Kịch bản CNN kernel 9 cặp toán hạng $(-128) \times (-128) \to \mathbf{147,456}$ (Chính xác 100%).
-  - Kiểm tra hồi quy 120 chuỗi ngẫu nhiên (seed `32'h20261003`) với độ dài chuỗi từ 1 đến 64 cặp.
-  - **Kết quả**: `5826 / 5826 cycle checks PASSED` (0 lỗi).
+| # | Module Name | Source File | Function & Microarchitectural Description |
+|---|---|---|---|
+| 1 | `int8_multiplier` | [`rtl/int8_multiplier.sv`](rtl/int8_multiplier.sv) | Combinational signed 8-bit multiplier ($8 \times 8 \to 16\text{-bit}$). |
+| 2 | `mac_int8` | [`rtl/mac_int8.sv`](rtl/mac_int8.sv) | Multiply-Accumulate unit with 32-bit accumulator and sign-extension. |
+| 3 | `dot9_int8` | [`rtl/dot9_int8.sv`](rtl/dot9_int8.sv) | 5-state FSM sequencer performing 9 MAC operations in 11 clock cycles. |
+| 4 | `ram_sync_read` | [`rtl/ram_sync_read.sv`](rtl/ram_sync_read.sv) | Synchronous on-chip BRAM buffer with strict 1-cycle read latency. |
+| 5 | `conv_window_reader` | [`rtl/conv_window_reader.sv`](rtl/conv_window_reader.sv) | $3 \times 3$ window operand extractor with zero-multiplier address generator. |
+| 6 | `conv2d_raster_scanner`| [`rtl/conv2d_raster_scanner.sv`](rtl/conv2d_raster_scanner.sv) | Full-frame 2D raster scanner producing 900 spatial window coordinates. |
+| 7 | `output_buffer` | [`rtl/output_buffer.sv`](rtl/output_buffer.sv) | $900 \times 32\text{-bit}$ dual-port storage buffer with address decoding. |
+| 8 | `conv_accelerator_top` | [`rtl/conv_accelerator_top.sv`](rtl/conv_accelerator_top.sv) | Top-level integration of the 2D convolution accelerator core. |
+| 9 | `picorv32` | [`rtl/picorv32.v`](rtl/picorv32.v) | Claire Wolf's RV32I multi-cycle RISC-V open-source CPU core. |
+| 10 | `soc_ram` | [`rtl/soc_ram.sv`](rtl/soc_ram.sv) | 16 KB unified program & data memory (inferred as 4 $\times$ RAMB36E1). |
+| 11 | `accelerator_mmio` | [`rtl/accelerator_mmio.sv`](rtl/accelerator_mmio.sv) | MMIO slave decoder interfacing CPU native memory bus to accelerator. |
+| 12 | `soc_top` | [`rtl/soc_top.sv`](rtl/soc_top.sv) | Complete SoC top-level integrating CPU, RAM, MMIO, and Accelerator. |
+| 13 | `uart_tx` | [`rtl/uart_tx.sv`](rtl/uart_tx.sv) | Serial transmitter (115200 baud, 8-N-1) for status logging to host PC. |
+| 14 | `fpga_top` | [`rtl/fpga_top.sv`](rtl/fpga_top.sv) | FPGA top wrapper with 2-stage FF AASD reset synchronizer & I/O pins. |
 
 ---
 
-## 5. Hiện Trạng Giai Đoạn 2: FSM & Handshake Wrapper (`dot9_int8`)
+## 4. Memory-Mapped I/O (MMIO) Register Map
 
-Giai đoạn 2 hoàn thành thiết kế lõi tính toán tích chập cơ bản cho kernel $3 \times 3$:
+The accelerator registers and buffers are mapped to base address `0x1000_0000`:
 
-### 5.1 Kiến trúc và Nguyên lý Hoạt động
-- **Máy trạng thái FSM 5 trạng thái**: `IDLE` $\to$ `CLEAR` $\to$ `ACCUMULATE` $\to$ `CAPTURE` $\to$ `DONE` $\to$ `IDLE`.
-- **Giao thức bắt tay Valid–Ready**: Chỉ nhận toán hạng khi `accept = in_valid && in_ready`. Tín hiệu `in_ready` chỉ tích cực trong `ACCUMULATE` và hạ ngay về 0 sau khi nhận đủ cặp thứ 9 để từ chối tuyệt đối cặp thứ 10.
-- **Tránh tranh chấp Nonblocking Assignment (NBA)**: Bổ sung chu kỳ đệm `CAPTURE` để chốt kết quả `result <= mac_acc` sau khi `mac_int8` đã hoàn tất cập nhật tích thứ 9, loại bỏ nguy cơ thiếu tích cuối.
-- **Kháng lỗi & Điều khiển**: Bỏ qua xung `start` khi đang `busy = 1`; `done` kéo dài đúng 1 chu kỳ; `result` hợp lệ trong suốt `done = 1` và giữ nguyên đến tác vụ sau hoặc reset; `rst = 1` hủy tác vụ ngay lập tức và không phát `done` giả.
-
-### 5.2 Kết quả Kiểm chứng (`tb_dot9_int8`)
-- **Nhóm A (Reset & Khởi động)**: Reset ban đầu, giữ IDLE, từ chối dữ liệu ở IDLE/CLEAR, hủy tác vụ giữa chừng không phát `done` giả $\to$ **PASS**.
-- **Nhóm B (Số học & Cực trị)**: Toàn dương, toàn âm, trái dấu, số 0, cực trị CNN $9 \times (-128 \times -128) = \mathbf{147,456}$, chuỗi chỉ có tích thứ 9 khác 0 $\to$ **PASS**.
-- **Nhóm C (Handshake, Stall & Backpressure)**: 9 cặp liên tục, stall ngẫu nhiên, stall dài 15 chu kỳ trước cặp thứ 9 không DONE sớm, từ chối cặp thứ 10 $\to$ **PASS**.
-- **Nhóm D (Điều khiển & Back-to-Back)**: Bỏ qua `start` khi bận, 5 tác vụ liên tiếp không lẫn dữ liệu, `done` đúng 1 chu kỳ $\to$ **PASS**.
-- **Nhóm E (Hồi quy Ngẫu nhiên)**: 120 tác vụ độc lập ngẫu nhiên toán hạng và stall (seed `32'h20261004`) đối chiếu độc lập với Scoreboard 64-bit $\to$ **PASS 120/120**.
-- **Tổng kết**: **137 / 137 tác vụ PASSED** (3,727 chu kỳ kiểm tra, 137 xung DONE hợp lệ, 0 lỗi).
-
----
-
-## 6. Hiện Trạng Giai Đoạn 3: Bộ Đệm RAM & Trích Xuất Cửa Sổ 3x3 (`conv_window_reader`)
-
-Giai đoạn 3 hiện thực bộ nhớ đệm RAM đọc đồng bộ và Sequencer trích xuất cửa sổ $3 \times 3$ cấp cho `dot9_int8`:
-
-### 6.1 Kiến trúc và Nguyên lý Hoạt động
-- **Bộ nhớ đệm Input & Weight Buffer**:
-  - `Input Buffer`: Lưu $32 \times 32 = 1,024$ phần tử signed INT8 (1,024 bytes), được Vivado tổng hợp suy diễn thành 1 khối **FPGA Block RAM (`RAMB18E1`)**.
-  - `Weight Buffer`: Lưu 9 trọng số signed INT8, được tổng hợp suy diễn thành **Distributed RAM (`RAM32M` / `RAM32X1D`)**.
-  - Đọc đồng bộ với độ trễ đúng 1 chu kỳ clock (1-Cycle Read Latency).
-- **Bộ sinh địa chỉ cửa sổ (Address Generator)**: Tự động tính toán địa chỉ ảnh tuyến tính $addr = (r \ll 5) \ | \ c$ cho 9 phần tử trong cửa sổ $3 \times 3$ tại `(out_row, out_col)` mà không cần dùng bộ nhân phần cứng.
-- **Sequencer FSM**: Điều khiển đọc từng cặp toán hạng từ RAM, chờ độ trễ đọc 1 chu kỳ, đưa vào `dot9_int8` qua bắt tay `valid`–`ready`. Khi gặp `in_ready = 0`, Sequencer giữ nguyên `valid = 1` cùng `x, w` ổn định, bảo đảm không đọc vượt, không mất cặp và không nhận trùng dữ liệu.
-
-### 6.2 Kết quả Kiểm chứng (`tb_conv_window_reader`)
-- **Nạp dữ liệu mẫu**: 1,024 byte ảnh và 9 byte kernel Sobel-X được nạp thành công qua cổng ghi RAM.
-- **Kiểm tra các cửa sổ đại diện theo yêu cầu**:
-  - Cửa sổ đầu ảnh `(0, 0)`: 9 cặp khớp 100%, kết quả đạt $-17$ $\to$ **PASS**.
-  - Cửa sổ giữa ảnh `(14, 14)`: 9 cặp khớp 100%, kết quả đạt $120$ $\to$ **PASS**.
-  - Cửa sổ cuối ảnh `(29, 29)`: 9 cặp khớp 100%, kết quả đạt $184$ $\to$ **PASS**.
-  - Cửa sổ góc trên phải `(0, 29)` và góc dưới trái `(29, 0)`: Khớp 100% $\to$ **PASS**.
-- **Kiểm tra hồi quy 15 cửa sổ ngẫu nhiên**: Toàn bộ 15 cửa sổ ngẫu nhiên đều tính đúng 100% $\to$ **PASS 15/15**.
-- **Tổng kết**: **20 / 20 cửa sổ PASSED** (180 / 180 cặp toán hạng khớp 100% Golden Reference).
-
-### 6.3 Kết quả Tổng hợp Phần cứng (Vivado Synthesis on Artix-7 `xc7a35t`)
-- **Block RAM**: **1 $\times$ RAMB18E1** (Input Buffer 8K-bit).
-- **Distributed RAM**: **1 $\times$ RAM32M, 2 $\times$ RAM32X1D** (Weight Buffer).
-- **Logic Tài nguyên**: 193 LUTs, 144 Flip-Flops (FDRE), 20 CARRY4.
-- **Trạng thái**: Hoàn thành không lỗi (**0 Errors, 0 Critical Warnings**).
+| Register Name | Offset Address | Access | Bit Width | Description |
+|---|---|:---:|:---:|---|
+| `REG_ACCEL_CTRL` | `0x1000_0000` | R/W | 32 | Control: Bit [0] = `START` (pulse/auto-clear), Bit [1] = `SOFT_RESET`. |
+| `REG_ACCEL_STATUS` | `0x1000_0004` | R/W1C | 32 | Status: Bit [0] = `BUSY`, Bit [1] = `DONE` (Write-1-to-Clear sticky flag). |
+| `REG_ACCEL_WINDOW_COUNT`| `0x1000_0008` | RO | 32 | Number of completed windows (ranges 0 to 900). |
+| `REG_IBUF_ADDR` | `0x1000_0010` | R/W | 32 | Input Buffer write address pointer (0 to 1,023). |
+| `REG_IBUF_DATA` | `0x1000_0014` | WO | 32 | Input Buffer write data register (lower 8 bits written as signed INT8). |
+| `REG_WBUF_ADDR` | `0x1000_0020` | R/W | 32 | Weight Buffer write address pointer (0 to 8). |
+| `REG_WBUF_DATA` | `0x1000_0024` | WO | 32 | Weight Buffer write data register (lower 8 bits written as signed INT8). |
+| `REG_OBUF_ADDR` | `0x1000_0030` | R/W | 32 | Output Buffer read address pointer (0 to 899). |
+| `REG_OBUF_DATA` | `0x1000_0034` | RO | 32 | Output Buffer read data register (full 32-bit signed INT32 result). |
+| `REG_DEBUG` | `0x2000_0000` | R/W | 32 | Debug output register (monitored by testbench for firmware status). |
 
 ---
 
-## 7. Hướng Dẫn Chạy Kiểm Tra (Verification)
+## 5. Repository Structure
 
-Môi trường kiểm tra sử dụng công cụ **Vivado Simulator 2025.1** có sẵn trên máy.
+```
+riscv-int8-conv-soc/
+├── .gitignore                      # Git exclusion rules for temporary build/log files
+├── README.md                       # Comprehensive project documentation
+├── SoC_RISCV.xpr                   # AMD Vivado 2025.1 project file
+├── firmware.hex                    # Root firmware hex (304 bytes, 76 instructions)
+├── rtl/                            # 14 RTL SystemVerilog / Verilog source files
+│   ├── accelerator_mmio.sv
+│   ├── conv2d_raster_scanner.sv
+│   ├── conv_accelerator_top.sv
+│   ├── conv_window_reader.sv
+│   ├── dot9_int8.sv
+│   ├── fpga_top.sv
+│   ├── int8_multiplier.sv
+│   ├── mac_int8.sv
+│   ├── output_buffer.sv
+│   ├── picorv32.v
+│   ├── ram_sync_read.sv
+│   ├── soc_ram.sv
+│   ├── soc_top.sv
+│   └── uart_tx.sv
+├── tb/                             # 9 self-checking SystemVerilog testbenches
+│   ├── tb_accelerator_mmio.sv
+│   ├── tb_conv2d_raster_scanner.sv
+│   ├── tb_conv_accelerator_top.sv
+│   ├── tb_conv_window_reader.sv
+│   ├── tb_dot9_int8.sv
+│   ├── tb_int8_multiplier.sv
+│   ├── tb_mac_int8.sv
+│   ├── tb_output_buffer.sv
+│   └── tb_soc_top.sv
+├── constraints/                    # Timing and board constraint files
+│   ├── stage4_timing.xdc
+│   ├── stage5_timing.xdc
+│   ├── stage6_timing.xdc
+│   └── stage7_board.xdc            # Complete Basys 3 board constraints (pinouts & 100MHz clock)
+├── firmware/                       # Bare-metal firmware sources & assembler
+│   ├── firmware.hex                # Machine code hex image
+│   ├── hw_demo.c                   # C reference algorithm implementation
+│   ├── rv32i_assembler.py          # Python-based RV32I cross-assembler
+│   └── test_accelerator.c          # C bare-metal driver testbench
+├── scripts/                        # Vivado automation & verification scripts
+│   ├── check_hardware.tcl          # Vivado Hardware Manager connection script
+│   ├── create_project.tcl          # Script to recreate Vivado project from scratch
+│   ├── run_all_regression.py       # Python automated runner for 9/9 regression tests
+│   ├── run_tests.bat               # Windows batch regression test runner
+│   ├── run_tests.ps1               # PowerShell regression test runner
+│   ├── run_vivado_stage5.tcl       # Automated synthesis & impl for Stage 5
+│   ├── run_vivado_stage6.tcl       # Automated synthesis & impl for Stage 6
+│   └── run_vivado_stage7.tcl       # Full synthesis, impl, timing & bitstream for Stage 7
+├── docs/                           # Detailed technical specifications and stage reviews
+│   ├── stage1_spec.md
+│   ├── stage2_spec.md
+│   ├── stage3_spec.md
+│   ├── stage4_spec.md & stage4_final_review.md
+│   ├── stage5_spec.md & stage5_final_review.md
+│   ├── stage6_spec.md & stage6_final_review.md
+│   └── stage7_spec.md & stage7_final_review.md
+└── build/                          # Implementation & timing reports
+    ├── stage4_timing_summary.rpt
+    ├── stage4_utilization.rpt
+    └── reports/
+        ├── stage5_utilization.rpt & stage5_timing_summary.rpt
+        ├── stage6_utilization.rpt & stage6_timing_summary.rpt
+        ├── stage7_utilization.rpt & stage7_utilization_hierarchical.rpt
+        ├── stage7_timing_summary.rpt & stage7_drc_report.rpt
+        └── stage7_io_report.rpt
+```
 
-### Cách 1: Chạy tự động bằng PowerShell (Khuyên dùng)
-Mở cửa sổ PowerShell và thực thi lệnh:
+---
+
+## 6. Verification & Testbench Suite
+
+The project enforces strict simulation verification with **9 self-checking testbenches** comparing RTL results against software Golden Models (Python and C).
+
+### Automated Regression Execution
+
+Run the complete regression suite using either Python, PowerShell, or Batch script:
+
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\run_tests.ps1
-```
-*Script tự động biên dịch và chạy cả 4 bài test:*
-1. `tb_int8_multiplier` (65,536 test vectors)
-2. `tb_mac_int8` (5,826 cycle checks)
-3. `tb_dot9_int8` (137 tasks, 3,727 cycle checks)
-4. `tb_conv_window_reader` (20 windows, 180 pair checks)
+# Option 1: Python Regression Runner (cross-platform, formatted summary)
+python scripts/run_all_regression.py
 
-### Cách 2: Chạy bằng Command Prompt (Batch script)
-Nhấp đúp chuột vào file `scripts\run_tests.bat` hoặc mở cmd gõ:
-```cmd
+# Option 2: PowerShell Runner
+powershell -ExecutionPolicy Bypass -File .\scripts\run_tests.ps1
+
+# Option 3: Command Prompt Batch Runner
 .\scripts\run_tests.bat
 ```
 
-### Cách 3: Xem dạng sóng Waveform
-Sau khi chạy kiểm tra, 4 file waveform dạng VCD được tạo trong thư mục `build/`:
-- `build/int8_multiplier_waveform.vcd`
-- `build/mac_int8_waveform.vcd`
-- `build/dot9_int8_waveform.vcd`
-- `build/conv_window_reader_waveform.vcd`
+### Verification Results Summary (Vivado Simulator v2025.1)
 
-Người dùng có thể mở bằng công cụ **GTKWave** hoặc nhập trực tiếp vào Vivado Waveform Viewer.
+| # | Testbench File | Target Module | Verified Vectors / Coverage | Verification Result |
+|---|---|---|---|:---:|
+| 1 | `tb_int8_multiplier.sv` | `int8_multiplier` | Exhaustive $256 \times 256 = \mathbf{65,536}$ combinations | **PASS (65,536/65,536)** |
+| 2 | `tb_mac_int8.sv` | `mac_int8` | 5,826 cycle checks, corner cases $[-128, +127]$ | **PASS (5,826/5,826)** |
+| 3 | `tb_dot9_int8.sv` | `dot9_int8` | 137 tasks, 3,727 checks, backpressure & stalls | **PASS (137/137)** |
+| 4 | `tb_conv_window_reader.sv` | `conv_window_reader`| 20 windows, 180 operand pairs, 1-cycle latency | **PASS (20/20)** |
+| 5 | `tb_conv2d_raster_scanner.sv` | `conv2d_raster_scanner` | 9 full test sequences, boundary handling (0..29) | **PASS (9/9)** |
+| 6 | `tb_output_buffer.sv` | `output_buffer` | 14 testcases, dual-port read/write integrity | **PASS (14/14)** |
+| 7 | `tb_conv_accelerator_top.sv` | `conv_accelerator_top` | Full $32 \times 32$ convolution, $\mathbf{900 / 900}$ outputs vs Golden Model | **PASS (900/900)** |
+| 8 | `tb_accelerator_mmio.sv` | `accelerator_mmio` | 7 testcases, MMIO register access & W1C protocol | **PASS (7/7)** |
+| 9 | `tb_soc_top.sv` | `soc_top` | 7 integration stages: CPU boot, MMIO write, Accel start, Polling, Golden Check | **PASS (7/7)** |
 
 ---
 
-## 8. Kế Hoạch Cho Bước Tiếp Theo (Giai Đoạn 4)
+## 7. FPGA Implementation & Resource Utilization
 
-Sau khi hoàn thành bộ đệm RAM và khối trích xuất cửa sổ `conv_window_reader`, bước tiếp theo sẽ xây dựng:
-1. **Bộ điều khiển quét toàn bộ bức ảnh (2D Convolution Raster Scanner)**:
-   - Tự động sinh tọa độ quét `(out_row, out_col)` từ `(0, 0)` đến `(29, 29)` cho đủ $30 \times 30 = 900$ pixel output.
-   - Quản lý bộ đệm kết quả đầu ra (Output Buffer $30 \times 30 = 900$ bytes).
-2. **Đối chiếu toàn diện với Golden Model Python**:
-   - Viết script Python sinh ma trận ảnh đầu vào, ma trận trọng số, tính toán ma trận đầu ra chuẩn.
-   - So sánh tự động từng pixel giữa kết quả RTL simulation và file kết quả Python.
+The complete SoC system was synthesized and implemented targeting the **Xilinx Artix-7 `xc7a35tcpg236-1`** FPGA on the Digilent Basys 3 board using AMD Vivado 2025.1:
+
+### Resource Utilization Breakdown (Post-Implementation)
+
+| Resource Primitives | System Total Used | Available on xc7a35t | Utilization (%) | Key Module Consumer |
+|---|:---:|:---:|:---:|---|
+| **Slice LUTs** | **1,297** | 20,800 | **6.24%** | PicoRV32 (1,038), MMIO (69), Scanner (189) |
+| -- *LUT as Logic* | 1,281 | 20,800 | 6.16% | Logic gates, adders, decoders |
+| -- *LUT as Memory* | 16 | 9,600 | 0.17% | Distributed RAM (Weight Buffer `RAM32M`) |
+| **Slice Registers (FF)** | **1,114** | 41,600 | **2.68%** | PicoRV32 (565), Output Buffer (258) |
+| **Block RAM (RAMB36E1)** | **5.5** (4x 36K + 3x 18K) | 50 | **11.00%** | SoC RAM (4x 36K = 16 KB), In/Out Buffers |
+| **DSP48E1 Blocks** | **0** | 90 | **0.00%** | All 8-bit multipliers mapped to LUT logic |
+| **Bonded IOBs** | **4** | 106 | **3.77%** | `sys_clk` (W5), `btn_reset` (U18), `uart_tx` (A18), `led_done` (U16) |
+
+---
+
+## 8. Static Timing Analysis (STA) & Design Rule Checks (DRC)
+
+### Static Timing Summary (100.00 MHz Target Clock)
+Extracted from Vivado implementation report [`build/reports/stage7_timing_summary.rpt`](build/reports/stage7_timing_summary.rpt):
+
+- **Target Frequency:** $100.00\text{ MHz}$ ($T_{\text{period}} = 10.000\text{ ns}$)
+- **Setup Timing Slack (WNS):** **$+0.255\text{ ns}$** ($> 0\text{ ns}$, **MET**)
+- **Total Negative Slack (TNS):** $0.000\text{ ns}$ (0 failing endpoints out of 3,026)
+- **Hold Timing Slack (WHS):** **$+0.035\text{ ns}$** ($> 0\text{ ns}$, **MET**)
+- **Total Hold Slack (THS):** $0.000\text{ ns}$ (0 failing endpoints)
+- **Worst Pulse Width Slack (WPWS):** **$+3.750\text{ ns}$** (0 failing endpoints out of 991)
+- **Timing Constraint Verdict:** **All user-specified timing constraints are met.**
+
+### Design Rule Check (DRC) Status
+Extracted from [`build/reports/stage7_drc_report.rpt`](build/reports/stage7_drc_report.rpt):
+- **Errors:** 0
+- **Critical Warnings:** 0
+- **Information Warnings:** 12 warnings for rule `REQP-1839` (*RAMB36 async control check*).
+  - *Technical Cause:* The reset signal driving the `ENARDEN`, `ENBWREN`, and `RSTRAMB` control pins of the 4 `RAMB36E1` primitives in `soc_ram` originates from `rst_sync_1_reg`, which possesses an asynchronous clear assertion input.
+  - *Impact:* These are informational advisory checks that do not impede bitstream generation (`fpga_top.bit` successfully generated).
+
+---
+
+## 9. How to Build & Reproduce
+
+### Prerequisites
+- AMD Vivado Design Suite 2025.1 (or compatible 2022.x/2023.x/2024.x).
+- Python 3.8+ (for cross-assembler and regression verification script).
+
+### Recreate Vivado Project & Run Implementation
+You can execute automated TCL scripts directly inside Vivado Tcl Shell:
+
+```tcl
+# Open Vivado in batch or GUI mode:
+vivado -mode tcl
+
+# 1. Recreate the complete project from sources:
+source scripts/create_project.tcl
+
+# 2. Run full implementation and bitstream generation:
+source scripts/run_vivado_stage7.tcl
+```
+
+The bitstream file will be generated at `build/stage7/fpga_top.bit`.
+
+---
+
+## 10. Known Limitations & Future Work
+
+1. **Physical Board Bring-Up (Hardware Test Pending):**
+   - The design has achieved the **PASS TO BITSTREAM** milestone (synthesis, place-and-route, 100 MHz timing closure, and DRC passed). Physical hardware validation on the Digilent Basys 3 board is pending in the next project phase.
+2. **Sequential MAC Datapath:**
+   - The convolution core computes 9 elements sequentially in 11 cycles per window using 1 MAC. Future work can implement 9 parallel MAC units to achieve 1-cycle-per-window throughput.
+3. **MMIO Bus Polling Overhead:**
+   - Transferring 1,024 input bytes and reading 900 output words is handled via CPU memory instructions (`SW`/`LW`). Integrating a Direct Memory Access (DMA) engine with AXI4/TileLink would significantly alleviate CPU bus contention.
+4. **Pushbutton Debouncing:**
+   - The 2-stage FF AASD synchronizer prevents reset metastability upon deassertion but does not include a counter-based debounce filter for mechanical button vibrations.
+
+---
+
+## 11. Authors & Academic Context
+
+- **Author:** Pham Tran Cuong (`ptcuong211`)
+- **Institution:** Department of Electronics & Telecommunications Engineering
+- **Academic Milestone:** Capstone Project 2 (Đồ án 2) — 2026
+- **License:** Open-source for academic and research purposes.
