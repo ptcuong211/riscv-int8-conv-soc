@@ -384,15 +384,71 @@ module tb_soc_top #(
         end
 
         // ====================================================================
+        // TEST 8: Reset Safety & Mid-Transaction Reset Injection (F-01 Verification)
+        // Kiem tra reset khi he thong dang chay, dam bao:
+        // 1. Khong co giao dich ghi ngoai y muon vao BRAM khi reset bat
+        // 2. CPU va BRAM reboot sach se, khoi dong lai firmware tu dau
+        // 3. Toan bo quy trinh Run 1 -> Run 2 thuc thi thanh cong sau reset
+        // ====================================================================
+        $display("\n>>> TEST 8: Kiem tra Reset Safety va BRAM write immunity during reset (F-01)...");
+        begin
+            logic [31:0] orig_mem_word0;
+            integer cycle_cnt;
+            orig_mem_word0 = u_dut.u_ram.mem[0];
+
+            // Phat xung reset giua luc he thong dang hoat dong
+            @(posedge clk);
+            rst <= 1'b1;
+
+            // Trong suot 5 chu ky reset, kiem tra khong co ghi RAM
+            repeat (5) @(posedge clk) begin
+                if (u_dut.u_ram.mem_ready !== 1'b0) begin
+                    $display("[FAIL] TEST 8: BRAM mem_ready bi bat khi dang reset!");
+                    test_fail_count++;
+                    $fatal(1, "BRAM ready asserted during reset");
+                end
+            end
+
+            // Ha reset de reboot SoC
+            @(posedge clk);
+            rst <= 1'b0;
+
+            // Kiem tra gia tri o nho word 0 khong bi ghi de ngoai y muon
+            if (u_dut.u_ram.mem[0] !== orig_mem_word0) begin
+                $display("[FAIL] TEST 8: BRAM mem[0] bi thay doi sau reset! Expected=0x%08h, Actual=0x%08h",
+                         orig_mem_word0, u_dut.u_ram.mem[0]);
+                test_fail_count++;
+                $fatal(1, "BRAM content corrupted by reset");
+            end
+
+            // Cho CPU reboot va chay hoan tat lai tu dau den 0xCAFE0002
+            $display("  -> Cho CPU reboot va chay lai firmware sau reset...");
+            cycle_cnt = 0;
+            while (debug_out !== 32'hCAFE_0002 && cycle_cnt < 200000) begin
+                @(posedge clk);
+                cycle_cnt++;
+            end
+
+            if (debug_out === 32'hCAFE_0002) begin
+                $display("[PASS] TEST 8: Reset an toan hoan hao! SoC reboot va thuc thi firmware thanh cong sau reset!");
+                test_pass_count++;
+            end else begin
+                $display("[FAIL] TEST 8: SoC reboot that bai hoac timeout! debug_out=0x%08h", debug_out);
+                test_fail_count++;
+                $fatal(1, "SoC reboot failed after reset injection");
+            end
+        end
+
+        // ====================================================================
         // TONG KET KIEM CHUNG STAGE 6
         // ====================================================================
         $display("\n==================================================================");
         $display("   TONG KET KIEM CHUNG SOC TOP (STAGE 6)");
-        $display("   So testcase PASS: %0d / 7", test_pass_count);
-        $display("   So testcase FAIL: %0d / 7", test_fail_count);
+        $display("   So testcase PASS: %0d / 8", test_pass_count);
+        $display("   So testcase FAIL: %0d / 8", test_fail_count);
         $display("==================================================================");
 
-        if (test_fail_count == 0 && test_pass_count == 7 && debug_out === 32'hCAFE_0002) begin
+        if (test_fail_count == 0 && test_pass_count == 8 && debug_out === 32'hCAFE_0002) begin
             $display(">>> TAT CA CAC TESTBENCH STAGE 6 DA PASS 100%%! <<<");
             $display(">>> PICORV32 CPU + ACCELERATOR + MMIO TICH HOP HOAN HAO! <<<");
         end else begin

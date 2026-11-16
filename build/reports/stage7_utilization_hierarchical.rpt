@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
 ---------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
-| Date         : Sun Nov  1 09:45:20 2026
+| Date         : Sun Nov 15 15:52:48 2026
 | Host         : LAPTOP-7N87NFQA running 64-bit major release  (build 9200)
 | Command      : report_utilization -hierarchical -file build/reports/stage7_utilization_hierarchical.rpt
 | Design       : fpga_top
@@ -22,10 +22,10 @@ Table of Contents
 +-----------------------------+-----------------------+------------+------------+---------+------+-----+--------+--------+------------+
 |           Instance          |         Module        | Total LUTs | Logic LUTs | LUTRAMs | SRLs | FFs | RAMB36 | RAMB18 | DSP Blocks |
 +-----------------------------+-----------------------+------------+------------+---------+------+-----+--------+--------+------------+
-| fpga_top                    |                 (top) |       1297 |       1247 |      50 |    0 | 878 |      5 |      1 |          0 |
+| fpga_top                    |                 (top) |       1294 |       1244 |      50 |    0 | 880 |      5 |      1 |          0 |
 |   (fpga_top)                |                 (top) |         12 |         12 |       0 |    0 |  49 |      0 |      0 |          0 |
-|   u_soc_top                 |               soc_top |       1260 |       1210 |      50 |    0 | 806 |      5 |      1 |          0 |
-|     u_cpu                   |              picorv32 |       1021 |        977 |      44 |    0 | 488 |      0 |      0 |          0 |
+|   u_soc_top                 |               soc_top |       1256 |       1206 |      50 |    0 | 808 |      5 |      1 |          0 |
+|     u_cpu                   |              picorv32 |       1017 |        973 |      44 |    0 | 488 |      0 |      0 |          0 |
 |     u_accel_mmio            |      accelerator_mmio |         10 |         10 |       0 |    0 |  77 |      0 |      0 |          0 |
 |     u_accelerator           |  conv_accelerator_top |        195 |        189 |       6 |    0 | 199 |      1 |      1 |          0 |
 |       u_raster_scanner      | conv2d_raster_scanner |        195 |        189 |       6 |    0 | 199 |      0 |      1 |          0 |
@@ -33,7 +33,7 @@ Table of Contents
 |         u_window_reader     |    conv_window_reader |        170 |        164 |       6 |    0 | 144 |      0 |      1 |          0 |
 |           (u_window_reader) |    conv_window_reader |         11 |         11 |       0 |    0 |  65 |      0 |      0 |          0 |
 |           u_dot9            |             dot9_int8 |         64 |         64 |       0 |    0 |  71 |      0 |      0 |          0 |
-|             u_mac           |              mac_int8 |         50 |         50 |       0 |    0 |  32 |      0 |      0 |          0 |
+|             u_mac           |              mac_int8 |         51 |         51 |       0 |    0 |  32 |      0 |      0 |          0 |
 |           u_input_buffer    |         ram_sync_read |         60 |         60 |       0 |    0 |   0 |      0 |      1 |          0 |
 +-----------------------------+-----------------------+------------+------------+---------+------+-----+--------+--------+------------+
 * Note: The sum of lower-level cells may be larger than their parent cells total, due to cross-hierarchy LUT combining

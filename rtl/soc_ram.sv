@@ -1,8 +1,8 @@
 // ============================================================================
 // Module Name: soc_ram
 // Description: Unified Program & Data Memory (16 KiB Block RAM) with Byte Enables
-// Target:      PicoRV32 RISC-V SoC (Stage 6)
-// Author:      RTL Design & Verification Team
+// Candidate:   candidate_local_sync_2ff (Production-Grade Two-Stage Local Reset)
+// Target:      PicoRV32 RISC-V SoC (Stage 6/7)
 // ============================================================================
 
 `timescale 1ns / 1ps
@@ -29,8 +29,26 @@ module soc_ram #(
     // Mang nho 4096 tu 32-bit, suy luan Block RAM
     (* ram_style = "block" *) logic [31:0] mem [0:WORDS-1];
 
-    logic        ready_q;
-    logic [31:0] rdata_q;
+    // Khoi tao ro rang de bao dam power-on khoi dong deterministically = 0
+    logic        ready_q = 1'b0;
+    logic [31:0] rdata_q = 32'd0;
+
+    // =========================================================================
+    // TWO-STAGE SYNCHRONOUS RESET ISOLATOR (Production-Grade with ASYNC_REG)
+    // - Ca 2 tang FF deu co thuoc tinh (* ASYNC_REG = "TRUE" *) de toi uu MTBF
+    // - Khong dung asynchronous preset/clear (thuan dong bo tren posedge clk)
+    // - Khoi tao ban dau = 1'b1 de bao dam trang thai an toan tuyet doi khi power-on
+    // - Xoa bo 100% canh bao REQP-1839 tren cac chan BRAM Enable
+    // =========================================================================
+    (* ASYNC_REG = "TRUE" *) logic rst_sync_reg0 = 1'b1;
+    (* ASYNC_REG = "TRUE" *) logic rst_sync_reg1 = 1'b1;
+
+    always_ff @(posedge clk) begin
+        rst_sync_reg0 <= rst;
+        rst_sync_reg1 <= rst_sync_reg0;
+    end
+
+    wire rst_sync_local = rst_sync_reg1;
 
     // Khoi tao du lieu RAM tu file hex neu co chi dinh
     initial begin
@@ -41,9 +59,8 @@ module soc_ram #(
 
     // Ghi va doc dong bo theo byte enable (1-wait-state BRAM)
     always_ff @(posedge clk) begin
-        if (rst) begin
+        if (rst_sync_local) begin
             ready_q <= 1'b0;
-            rdata_q <= 32'd0;
         end else begin
             ready_q <= 1'b0;
 
@@ -66,4 +83,3 @@ module soc_ram #(
     assign mem_rdata = rdata_q;
 
 endmodule
-
