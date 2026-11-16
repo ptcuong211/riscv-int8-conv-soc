@@ -2,15 +2,18 @@ import os
 import subprocess
 import sys
 
-vivado_bin = r"D:\vivado\2025.1\Vivado\bin"
+from pathlib import Path
+
+vivado_bin = os.environ.get("VIVADO_BIN", r"D:\vivado\2025.1\Vivado\bin")
 os.environ["PATH"] = vivado_bin + os.pathsep + os.environ.get("PATH", "")
 
-build_dir = r"D:\DA2\SoC RISCV\build"
-os.makedirs(build_dir, exist_ok=True)
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+build_dir = PROJECT_ROOT / "build"
+build_dir.mkdir(parents=True, exist_ok=True)
 
 # Copy firmware.hex
 import shutil
-shutil.copy2(r"D:\DA2\SoC RISCV\firmware\firmware.hex", os.path.join(build_dir, "firmware.hex"))
+shutil.copy2(PROJECT_ROOT / "firmware" / "firmware.hex", build_dir / "firmware.hex")
 
 tests = [
     ("1. tb_int8_multiplier", ["xvlog -sv ../rtl/int8_multiplier.sv ../tb/tb_int8_multiplier.sv",

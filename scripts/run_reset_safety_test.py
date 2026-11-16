@@ -2,20 +2,22 @@ import os
 import subprocess
 import sys
 
-vivado_bin = r"D:\vivado\2025.1\Vivado\bin"
+from pathlib import Path
+
+vivado_bin = os.environ.get("VIVADO_BIN", r"D:\vivado\2025.1\Vivado\bin")
 os.environ["PATH"] = vivado_bin + os.pathsep + os.environ.get("PATH", "")
 
-repo_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-build_dir = os.path.join(repo_dir, "build")
-os.makedirs(build_dir, exist_ok=True)
-os.chdir(build_dir)
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+build_dir = PROJECT_ROOT / "build"
+build_dir.mkdir(parents=True, exist_ok=True)
+os.chdir(str(build_dir))
 
 print("=" * 70)
 print("  RUNNING F-01 DIRECTED RESET SAFETY VERIFICATION (10 CHECKS)")
 print("=" * 70)
 
-soc_ram_sv = os.path.join(repo_dir, "rtl", "soc_ram.sv")
-tb_safety_sv = os.path.join(repo_dir, "tb", "tb_soc_ram_2ff_safety.sv")
+soc_ram_sv = PROJECT_ROOT / "rtl" / "soc_ram.sv"
+tb_safety_sv = PROJECT_ROOT / "tb" / "tb_soc_ram_2ff_safety.sv"
 
 cmd_compile = f'xvlog -sv "{soc_ram_sv}" "{tb_safety_sv}"'
 print(f"--> Compiling: {cmd_compile}")

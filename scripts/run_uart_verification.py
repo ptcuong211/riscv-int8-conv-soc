@@ -2,16 +2,18 @@ import os
 import subprocess
 import sys
 
-vivado_bin = r"D:\vivado\2025.1\Vivado\bin"
+from pathlib import Path
+
+vivado_bin = os.environ.get("VIVADO_BIN", r"D:\vivado\2025.1\Vivado\bin")
 os.environ["PATH"] = vivado_bin + os.pathsep + os.environ.get("PATH", "")
 
-repo_dir = r"D:\DA2\SoC RISCV"
-build_dir = os.path.join(repo_dir, "build")
-os.makedirs(build_dir, exist_ok=True)
-os.chdir(build_dir)
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+build_dir = PROJECT_ROOT / "build"
+build_dir.mkdir(parents=True, exist_ok=True)
+os.chdir(str(build_dir))
 
 import shutil
-shutil.copy2(os.path.join(repo_dir, "firmware", "firmware.hex"), os.path.join(build_dir, "firmware.hex"))
+shutil.copy2(PROJECT_ROOT / "firmware" / "firmware.hex", build_dir / "firmware.hex")
 
 rtl_files = [
     "rtl/uart_tx.sv",
@@ -31,7 +33,7 @@ rtl_files = [
     "tb/tb_fpga_top_uart.sv"
 ]
 
-rtl_args = " ".join([f'"{os.path.join(repo_dir, f)}"' for f in rtl_files])
+rtl_args = " ".join([f'"{PROJECT_ROOT / f}"' for f in rtl_files])
 cmd_xvlog = f'xvlog -sv {rtl_args}'
 
 print("--> Compiling for tb_fpga_top_uart...")
