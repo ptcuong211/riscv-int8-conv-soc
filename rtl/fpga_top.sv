@@ -131,26 +131,31 @@ module fpga_top #(
     // ------------------------------------------------------------------------
     // 7. FSM phat thong diep UART bao cao trang thai ra may tinh qua cong COM
     // ------------------------------------------------------------------------
+    logic boot_pending_q;
+    logic r1_pending_q;
+    logic r2_pending_q;
+    logic r1_seen_q;
+    logic r2_seen_q;
+
     typedef enum logic [2:0] {
         UART_IDLE       = 3'd0,
         UART_SEND_MSG   = 3'd1,
-        UART_WAIT_BYTE  = 3'd2,
-        UART_DONE       = 3'd3
+        UART_WAIT_START = 3'd2,
+        UART_WAIT_DONE  = 3'd3
     } uart_fsm_t;
 
-    uart_fsm_t uart_state_q;
+    uart_fsm_t  uart_state_q;
     logic [5:0] msg_idx_q;
     logic [2:0] current_msg_q;
-    logic [31:0] last_debug_q;
 
     // ROM chua cac chuoi thong diep ASCII
-    // Msg 0: "\r\n[SOC] RISC-V CONV ACCELERATOR BOOT\r\n" (38 bytes)
-    // Msg 1: "[RUN 1] ALL ONES: PASS (900x 9)\r\n"        (34 bytes)
-    // Msg 2: "[RUN 2] RE-RUN: PASS (900x 18)\r\n"         (33 bytes)
-    // Msg 3: "[STAGE 7] ALL TESTS PASS 100%!\r\n"         (33 bytes)
+    // Msg 0: "\r\nBOOT: SoC OK\r\n" (16 bytes)
+    // Msg 1: "R1:PASS (9) \r\n"        (14 bytes)
+    // Msg 2: "R2:PASS (18) \r\n"         (15 bytes)
+    // Msg 3: "ALL PASS!!\r\n"            (12 bytes)
     function automatic logic [7:0] get_msg_char(input [2:0] msg_id, input [5:0] idx);
         case (msg_id)
-            3'd0: begin // Boot message (38 bytes)
+            3'd0: begin // Boot message (16 bytes)
                 case (idx)
                     6'd0: return 8'h0D; 6'd1: return 8'h0A; // \r\n
                     6'd2: return "B";   6'd3: return "O";   6'd4: return "O";   6'd5: return "T";
@@ -160,7 +165,7 @@ module fpga_top #(
                     default: return 8'h00;
                 endcase
             end
-            3'd1: begin // Run 1 PASS (16 bytes)
+            3'd1: begin // Run 1 PASS (14 bytes)
                 case (idx)
                     6'd0: return "R";   6'd1: return "1";   6'd2: return ":";   6'd3: return "P";
                     6'd4: return "A";   6'd5: return "S";   6'd6: return "S";   6'd7: return " ";
@@ -169,7 +174,7 @@ module fpga_top #(
                     default: return 8'h00;
                 endcase
             end
-            3'd2: begin // Run 2 PASS (18 bytes)
+            3'd2: begin // Run 2 PASS (15 bytes)
                 case (idx)
                     6'd0: return "R";   6'd1: return "2";   6'd2: return ":";   6'd3: return "P";
                     6'd4: return "A";   6'd5: return "S";   6'd6: return "S";   6'd7: return " ";
@@ -178,7 +183,7 @@ module fpga_top #(
                     default: return 8'h00;
                 endcase
             end
-            3'd3: begin // Global PASS (16 bytes)
+            3'd3: begin // Global PASS (12 bytes)
                 case (idx)
                     6'd0: return "A";   6'd1: return "L";   6'd2: return "L";   6'd3: return " ";
                     6'd4: return "P";   6'd5: return "A";   6'd6: return "S";   6'd7: return "S";
@@ -200,8 +205,38 @@ module fpga_top #(
         endcase
     endfunction
 
-    logic [1:0] boot_sent_q;
+    // Catch pending status events exactly ONCE upon rising event
+    always_ff @(posedge sys_clk) begin
+        if (sys_rst) begin
+            boot_pending_q <= 1'b1; // Trigger BOOT immediately upon reset release
+            r1_pending_q   <= 1'b0;
+            r2_pending_q   <= 1'b0;
+            r1_seen_q      <= 1'b0;
+            r2_seen_q      <= 1'b0;
+        end else begin
+            if (soc_debug_out == 32'hCAFE_0001 && !r1_seen_q) begin
+                r1_pending_q <= 1'b1;
+                r1_seen_q    <= 1'b1;
+            end
+            if (soc_debug_out == 32'hCAFE_0002 && !r2_seen_q) begin
+                r2_pending_q <= 1'b1;
+                r2_seen_q    <= 1'b1;
+            end
 
+            // Clear pending flag once the respective message transmission is dispatched
+            if (uart_state_q == UART_IDLE) begin
+                if (boot_pending_q) begin
+                    boot_pending_q <= 1'b0;
+                end else if (r1_pending_q) begin
+                    r1_pending_q   <= 1'b0;
+                end else if (r2_pending_q) begin
+                    r2_pending_q   <= 1'b0;
+                end
+            end
+        end
+    end
+
+    // UART Transmission FSM (Strict in-order: BOOT -> RUN 1 -> RUN 2 -> ALL PASS)
     always_ff @(posedge sys_clk) begin
         if (sys_rst) begin
             uart_state_q   <= UART_IDLE;
@@ -209,32 +244,20 @@ module fpga_top #(
             uart_tx_byte   <= '0;
             msg_idx_q      <= '0;
             current_msg_q  <= '0;
-            last_debug_q   <= '0;
-            boot_sent_q    <= 2'd0;
         end else begin
             uart_tx_start <= 1'b0;
 
             case (uart_state_q)
                 UART_IDLE: begin
-                    // 1. Gui thong bao Boot lan dau tien
-                    if (boot_sent_q == 2'd0 && heartbeat_cnt[20]) begin
-                        boot_sent_q   <= 2'd1;
+                    msg_idx_q <= '0;
+                    if (boot_pending_q) begin
                         current_msg_q <= 3'd0;
-                        msg_idx_q     <= '0;
                         uart_state_q  <= UART_SEND_MSG;
-                    end
-                    // 2. Phat hien Run 1 PASS
-                    else if (soc_debug_out == 32'hCAFE_0001 && last_debug_q != 32'hCAFE_0001) begin
-                        last_debug_q  <= 32'hCAFE_0001;
+                    end else if (r1_pending_q) begin
                         current_msg_q <= 3'd1;
-                        msg_idx_q     <= '0;
                         uart_state_q  <= UART_SEND_MSG;
-                    end
-                    // 3. Phat hien Run 2 PASS (ALL PASS)
-                    else if (soc_debug_out == 32'hCAFE_0002 && last_debug_q != 32'hCAFE_0002) begin
-                        last_debug_q  <= 32'hCAFE_0002;
+                    end else if (r2_pending_q) begin
                         current_msg_q <= 3'd2;
-                        msg_idx_q     <= '0;
                         uart_state_q  <= UART_SEND_MSG;
                     end
                 end
@@ -243,17 +266,25 @@ module fpga_top #(
                     if (!uart_tx_busy) begin
                         uart_tx_byte  <= get_msg_char(current_msg_q, msg_idx_q);
                         uart_tx_start <= 1'b1;
-                        uart_state_q  <= UART_WAIT_BYTE;
+                        uart_state_q  <= UART_WAIT_START;
                     end
                 end
 
-                UART_WAIT_BYTE: begin
+                UART_WAIT_START: begin
+                    // Wait for uart_tx to recognize tx_start and raise tx_busy
                     if (uart_tx_busy) begin
+                        uart_state_q <= UART_WAIT_DONE;
+                    end
+                end
+
+                UART_WAIT_DONE: begin
+                    // Wait for uart_tx to completely finish sending the byte (tx_busy falls to 0)
+                    if (!uart_tx_busy) begin
                         if (msg_idx_q + 1'b1 < get_msg_len(current_msg_q)) begin
                             msg_idx_q    <= msg_idx_q + 1'b1;
                             uart_state_q <= UART_SEND_MSG;
                         end else begin
-                            // Neu vua xong Msg 2 thi gui tiep Msg 3 (ALL PASS)
+                            // Chain Msg 3 (ALL PASS) directly after Msg 2 (Run 2 PASS)
                             if (current_msg_q == 3'd2) begin
                                 current_msg_q <= 3'd3;
                                 msg_idx_q     <= '0;
