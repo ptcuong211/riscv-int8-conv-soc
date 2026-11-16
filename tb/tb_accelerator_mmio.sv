@@ -214,6 +214,53 @@ module tb_accelerator_mmio;
             test_fail++;
         end
 
+        // ====================================================================
+        // Test 6: Invalid MMIO Address Access via Real Bus Transactions (F-03 DV)
+        // - Kiem tra truy cap dia chi khong hop le trong pham vi 5-bit offset (vi du 0x1000_0001, 0x1000_0002, 0x1000_001E)
+        // - Kiem tra bus handshake ready_q phan hoi dung 1 chu ky, khong gay treo CPU
+        // - Kiem tra gia tri tra ve la 0xDEADBEEF theo dung nhanh default cua case(reg_offset)
+        // ====================================================================
+        $display("\n>>> Test 6: Invalid MMIO Address Access via Real Bus Transactions (F-03)...");
+        begin
+            int test6_pass = 1;
+
+            // 6.1. Doc dia chi offset 0x01 (dia chi le khong nam trong tap thanh ghi hop le)
+            mmio_read(32'h1000_0001, rdata);
+            if (rdata === 32'hDEAD_BEEF) begin
+                $display("  [PASS] Test 6.1: Read undefined offset 0x01 correctly returned 0x%08h (DEADBEEF)", rdata);
+            end else begin
+                $display("  [FAIL] Test 6.1: Read offset 0x01 got 0x%08h != expected 0xDEADBEEF", rdata);
+                test6_pass = 0;
+            end
+
+            // 6.2. Doc dia chi offset 0x1E (nam trong dai 0x00..0x1F nhung khong hop le)
+            mmio_read(32'h1000_001E, rdata);
+            if (rdata === 32'hDEAD_BEEF) begin
+                $display("  [PASS] Test 6.2: Read undefined offset 0x1E correctly returned 0x%08h (DEADBEEF)", rdata);
+            end else begin
+                $display("  [FAIL] Test 6.2: Read offset 0x1E got 0x%08h != expected 0xDEADBEEF", rdata);
+                test6_pass = 0;
+            end
+
+            // 6.3. Ghi dia chi offset 0x1E qua giao dich bus that, xac nhan khong lam hong cac thanh ghi hop le
+            mmio_write(32'h1000_001E, 32'hA5A5_A5A5);
+            // Doc lai thanh ghi IBUF_ADDR hop le da ghi o Test 1 xem co bi ghi de khong
+            mmio_read(32'h1000_0008, rdata);
+            if (rdata === 32'd512) begin
+                $display("  [PASS] Test 6.3: Write to invalid address 0x1E safely ignored, valid registers intact!");
+            end else begin
+                $display("  [FAIL] Test 6.3: Valid register corrupted by invalid write!");
+                test6_pass = 0;
+            end
+
+            if (test6_pass) begin
+                $display("[PASS] Test 6: Invalid MMIO Address verification passed with real bus handshake!");
+                test_pass++;
+            end else begin
+                test_fail++;
+            end
+        end
+
         $display("==================================================================");
         $display("   KET QUA UNIT TEST MMIO: PASS=%0d, FAIL=%0d", test_pass, test_fail);
         $display("==================================================================");

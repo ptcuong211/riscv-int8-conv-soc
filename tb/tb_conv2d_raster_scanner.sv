@@ -546,11 +546,39 @@ module tb_conv2d_raster_scanner;
         if (success) test_pass_count++; else test_fail_count++;
 
         // =====================================================================
+        // TEST 10: Non-homogeneous Mixed-Sign Spatial Gradient & Window Index Integrity (F-03 DV)
+        // - Kiem chung toan bo 900 toa do (base_row, base_col) va tuyen tinh 0..899
+        // - Ma tran dau vao co dao dau dot ngot va bien do lon (-120..+120)
+        // - Xac thuc golden output doc lap tai cac vi tri bien (dau, giua, cuoi)
+        // =====================================================================
+        $display("\n>>> [TEST 10] Non-homogeneous Mixed-Sign Matrix & Detailed Spatial Coordinates (F-03 DV)...");
+        for (int r = 0; r < IMG_HEIGHT; r++) begin
+            for (int c = 0; c < IMG_WIDTH; c++) begin
+                // Gradient khong gian ket hop am/duong
+                golden_image[r][c] = signed'(8'(((r * 13 - c * 19 + 71) % 241) - 120));
+            end
+        end
+
+        golden_kernel[0] = -8'sd15; golden_kernel[1] =  8'sd25; golden_kernel[2] = -8'sd35;
+        golden_kernel[3] =  8'sd45; golden_kernel[4] = -8'sd55; golden_kernel[5] =  8'sd65;
+        golden_kernel[6] = -8'sd75; golden_kernel[7] =  8'sd85; golden_kernel[8] = -8'sd95;
+
+        compute_golden();
+        load_buffers();
+        run_and_verify_scan("TEST 10 - Non-homogeneous Mixed-Sign Gradient", 0, success);
+        if (success) begin
+            $display("[PASS] TEST 10: Spatial gradient & 900 coordinate streaming verified 100%%!");
+            test_pass_count++;
+        end else begin
+            test_fail_count++;
+        end
+
+        // =====================================================================
         // Tong ket kiem chung
         // =====================================================================
         $display("\n==================================================================");
         $display("   KET QUA KIEM CHUNG GIAI DOAN 4 (conv2d_raster_scanner):");
-        $display("   - Tong so bai test bat buoc:  9");
+        $display("   - Tong so bai test bat buoc:  10");
         $display("   - So bai test thanh cong:    %0d", test_pass_count);
         $display("   - So bai test that bai:      %0d", test_fail_count);
         $display("==================================================================");

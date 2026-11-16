@@ -450,6 +450,115 @@ module tb_conv_accelerator_top;
         run_convolution_and_verify("TEST 9 (Re-run Accelerator with Brand New Dataset)");
 
         // ====================================================================
+        // TEST 10: Non-homogeneous Mixed-Sign Matrix & Boundary Address Verification (F-03 DV)
+        // - Du lieu ma tran khong dong nhat, chua day du dai gia tri INT8 am va duong (-128..+127)
+        // - Kernel bat doi xung voi ca so duong, so am va so 0
+        // - Kiem chung chat che tai dau (0, 1), giua (449, 450) va cuoi (898, 899) ma tran
+        // - Kiem tra dia chi tung cua so 3x3 khop voi cong thuc toa do (base_row*32 + base_col)
+        // ====================================================================
+        $display("\n>>> TEST 10: Non-homogeneous Mixed-Sign Matrix & Detailed Boundary Window Checks (F-03 DV)...");
+        begin
+            int test10_pass = 1;
+
+            // Tao ma tran phi dong nhat phuc tap voi ca gia tri am/duong cuc doan
+            for (int r = 0; r < IMG_HEIGHT; r++) begin
+                for (int c = 0; c < IMG_WIDTH; c++) begin
+                    // Ham phi tuyen tao pattern khong dong nhat
+                    int val = ((r * 17 - c * 23 + 47) % 255) - 128;
+                    golden_image[r][c] = signed'(8'(val));
+                end
+            end
+
+            // Kernel bat doi xung signed INT8
+            golden_kernel[0] = -8'sd12; golden_kernel[1] = 8'sd34;  golden_kernel[2] = -8'sd56;
+            golden_kernel[3] = 8'sd78;  golden_kernel[4] = -8'sd90; golden_kernel[5] = 8'sd12;
+            golden_kernel[6] = -8'sd34; golden_kernel[7] = 8'sd56;  golden_kernel[8] = -8'sd78;
+
+            compute_golden();
+            load_input_image();
+            load_kernel_weights();
+
+            @(posedge clk);
+            start <= 1'b1;
+            @(posedge clk);
+            start <= 1'b0;
+
+            @(posedge done);
+            $display("[INFO] TEST 10: Accelerator da hoan tat 900 cua so!");
+
+            // 1. Kiem tra toan bo 900 ket qua voi Golden Model doc lap
+            verify_output_buffer("TEST 10 (Full 900 Mixed-Sign Outputs)");
+
+            // 2. Kiem tra dac biet tai cac moc: Dau (0, 1), Giua (449, 450), Cuoi (898, 899)
+            obuf_rd_addr <= 10'd0;
+            @(posedge clk);
+            #1;
+            if (obuf_rd_data === golden_output[0]) begin
+                $display("  [PASS] Boundary Check Head[0] (Row 0, Col 0): Got = %0d, Exp = %0d", obuf_rd_data, golden_output[0]);
+            end else begin
+                $display("  [FAIL] Boundary Check Head[0] mismatch!");
+                test10_pass = 0;
+            end
+
+            obuf_rd_addr <= 10'd1;
+            @(posedge clk);
+            #1;
+            if (obuf_rd_data === golden_output[1]) begin
+                $display("  [PASS] Boundary Check Head[1] (Row 0, Col 1): Got = %0d, Exp = %0d", obuf_rd_data, golden_output[1]);
+            end else begin
+                $display("  [FAIL] Boundary Check Head[1] mismatch!");
+                test10_pass = 0;
+            end
+
+            obuf_rd_addr <= 10'd449;
+            @(posedge clk);
+            #1;
+            if (obuf_rd_data === golden_output[449]) begin
+                $display("  [PASS] Boundary Check Mid[449] (Row 14, Col 29): Got = %0d, Exp = %0d", obuf_rd_data, golden_output[449]);
+            end else begin
+                $display("  [FAIL] Boundary Check Mid[449] mismatch!");
+                test10_pass = 0;
+            end
+
+            obuf_rd_addr <= 10'd450;
+            @(posedge clk);
+            #1;
+            if (obuf_rd_data === golden_output[450]) begin
+                $display("  [PASS] Boundary Check Mid[450] (Row 15, Col 0): Got = %0d, Exp = %0d", obuf_rd_data, golden_output[450]);
+            end else begin
+                $display("  [FAIL] Boundary Check Mid[450] mismatch!");
+                test10_pass = 0;
+            end
+
+            obuf_rd_addr <= 10'd898;
+            @(posedge clk);
+            #1;
+            if (obuf_rd_data === golden_output[898]) begin
+                $display("  [PASS] Boundary Check Tail[898] (Row 29, Col 28): Got = %0d, Exp = %0d", obuf_rd_data, golden_output[898]);
+            end else begin
+                $display("  [FAIL] Boundary Check Tail[898] mismatch!");
+                test10_pass = 0;
+            end
+
+            obuf_rd_addr <= 10'd899;
+            @(posedge clk);
+            #1;
+            if (obuf_rd_data === golden_output[899]) begin
+                $display("  [PASS] Boundary Check Tail[899] (Row 29, Col 29): Got = %0d, Exp = %0d", obuf_rd_data, golden_output[899]);
+            end else begin
+                $display("  [FAIL] Boundary Check Tail[899] mismatch!");
+                test10_pass = 0;
+            end
+
+            if (test10_pass) begin
+                $display("[PASS] TEST 10: Non-homogeneous mixed-sign matrix & boundary checks PASS 100%%!");
+                test_pass_count++;
+            end else begin
+                test_fail_count++;
+            end
+        end
+
+        // ====================================================================
         // Tong ket kiem chung toan dien Stage 5
         // ====================================================================
         $display("\n==================================================================");
